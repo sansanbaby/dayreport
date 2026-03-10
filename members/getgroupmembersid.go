@@ -64,6 +64,7 @@ type UserInfo struct {
 	Dept   string
 }
 
+// httpPostJSON 是一个简单的工具函数，用于发送 POST 请求并将请求体编码为 JSON 格式。
 func httpPostJSON(url string, body interface{}) (*http.Response, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	b, err := json.Marshal(body)
@@ -78,6 +79,7 @@ func httpPostJSON(url string, body interface{}) (*http.Response, error) {
 	return client.Do(req)
 }
 
+// GetAttendanceGroupMembersId 获取考勤组成员ID
 func GetAttendanceGroupMembersId(accessToken, opUserId string, groupId int) ([]string, error) {
 	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/memberusers/list?access_token=%s", accessToken)
 
@@ -116,6 +118,7 @@ func GetAttendanceGroupMembersId(accessToken, opUserId string, groupId int) ([]s
 	return allMembers, nil
 }
 
+// GetUserRosterInfo 获取用户信息姓名和部门
 func GetUserRosterInfo(accessToken string, userIdList []string) ([]UserInfo, error) {
 	url := "https://api.dingtalk.com/v1.0/hrm/rosters/lists/query"
 

@@ -10,84 +10,85 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func PrintAttendanceReport(accessToken string, userIdList []string, workDate string) error {
-	userInfos, err := members.GetUserRosterInfo(accessToken, userIdList)
-	if err != nil {
-		return fmt.Errorf("获取员工信息失败：%v", err)
-	}
-
-	userInfoMap := make(map[string]members.UserInfo)
-	for _, info := range userInfos {
-		userInfoMap[info.UserID] = info
-	}
-
-	details, err := attendance.BatchGetPersonalAttendance(accessToken, userIdList, workDate)
-	if err != nil {
-		return fmt.Errorf("获取考勤数据失败：%v", err)
-	}
-
-	for i := 0; i < len(details); i += 2 {
-		if i+1 >= len(details) {
-			break
-		}
-
-		record1 := details[i]
-		record2 := details[i+1]
-
-		var onDuty, offDuty attendance.AttendanceDetail
-
-		if record1.CheckType == "OnDuty" {
-			onDuty = record1
-			offDuty = record2
-		} else {
-			onDuty = record2
-			offDuty = record1
-		}
-
-		userInfo := userInfoMap[onDuty.UserID]
-
-		fmt.Printf("\n员工 ID: %s\n", onDuty.UserID)
-		fmt.Printf("姓名：%s\n", userInfo.Name)
-		fmt.Printf("部门：%s\n", userInfo.Dept)
-		fmt.Println("----------------------------------------")
-
-		switch onDuty.TimeResult {
-		case "NotSigned":
-			fmt.Println("上班时间：未打卡")
-		case "Normal":
-			fmt.Printf("上班时间：%s (正常)\n", onDuty.UserCheckTime)
-		case "Late":
-			fmt.Printf("上班时间：%s (迟到)\n", onDuty.UserCheckTime)
-		case "SeriousLate":
-			fmt.Printf("上班时间：%s (严重迟到)\n", onDuty.UserCheckTime)
-		case "Absenteeism":
-			fmt.Printf("上班时间：%s (旷工迟到)\n", onDuty.UserCheckTime)
-		case "Early":
-			fmt.Printf("上班时间：%s (早退)\n", onDuty.UserCheckTime)
-		default:
-			fmt.Printf("上班时间：%s\n", onDuty.UserCheckTime)
-		}
-
-		switch offDuty.TimeResult {
-		case "NotSigned":
-			fmt.Println("下班时间：未打卡")
-		case "Normal":
-			fmt.Printf("下班时间：%s (正常)\n", offDuty.UserCheckTime)
-		case "Late":
-			fmt.Printf("下班时间：%s (迟到)\n", offDuty.UserCheckTime)
-		case "SeriousLate":
-			fmt.Printf("下班时间：%s (严重迟到)\n", offDuty.UserCheckTime)
-		case "Absenteeism":
-			fmt.Printf("下班时间：%s (旷工迟到)\n", offDuty.UserCheckTime)
-		case "Early":
-			fmt.Printf("下班时间：%s (早退)\n", offDuty.UserCheckTime)
-		default:
-			fmt.Printf("下班时间：%s\n", offDuty.UserCheckTime)
-		}
-	}
-
-	return nil
-}
+//打印考勤报表到控制台
+//func PrintAttendanceReport(accessToken string, userIdList []string, workDate string) error {
+//	userInfos, err := members.GetUserRosterInfo(accessToken, userIdList)
+//	if err != nil {
+//		return fmt.Errorf("获取员工信息失败：%v", err)
+//	}
+//
+//	userInfoMap := make(map[string]members.UserInfo)
+//	for _, info := range userInfos {
+//		userInfoMap[info.UserID] = info
+//	}
+//
+//	details, err := attendance.BatchGetPersonalAttendance(accessToken, userIdList, workDate)
+//	if err != nil {
+//		return fmt.Errorf("获取考勤数据失败：%v", err)
+//	}
+//
+//	for i := 0; i < len(details); i += 2 {
+//		if i+1 >= len(details) {
+//			break
+//		}
+//
+//		record1 := details[i]
+//		record2 := details[i+1]
+//
+//		var onDuty, offDuty attendance.AttendanceDetail
+//
+//		if record1.CheckType == "OnDuty" {
+//			onDuty = record1
+//			offDuty = record2
+//		} else {
+//			onDuty = record2
+//			offDuty = record1
+//		}
+//
+//		userInfo := userInfoMap[onDuty.UserID]
+//
+//		fmt.Printf("\n员工 ID: %s\n", onDuty.UserID)
+//		fmt.Printf("姓名：%s\n", userInfo.Name)
+//		fmt.Printf("部门：%s\n", userInfo.Dept)
+//		fmt.Println("----------------------------------------")
+//
+//		switch onDuty.TimeResult {
+//		case "NotSigned":
+//			fmt.Println("上班时间：未打卡")
+//		case "Normal":
+//			fmt.Printf("上班时间：%s (正常)\n", onDuty.UserCheckTime)
+//		case "Late":
+//			fmt.Printf("上班时间：%s (迟到)\n", onDuty.UserCheckTime)
+//		case "SeriousLate":
+//			fmt.Printf("上班时间：%s (严重迟到)\n", onDuty.UserCheckTime)
+//		case "Absenteeism":
+//			fmt.Printf("上班时间：%s (旷工迟到)\n", onDuty.UserCheckTime)
+//		case "Early":
+//			fmt.Printf("上班时间：%s (早退)\n", onDuty.UserCheckTime)
+//		default:
+//			fmt.Printf("上班时间：%s\n", onDuty.UserCheckTime)
+//		}
+//
+//		switch offDuty.TimeResult {
+//		case "NotSigned":
+//			fmt.Println("下班时间：未打卡")
+//		case "Normal":
+//			fmt.Printf("下班时间：%s (正常)\n", offDuty.UserCheckTime)
+//		case "Late":
+//			fmt.Printf("下班时间：%s (迟到)\n", offDuty.UserCheckTime)
+//		case "SeriousLate":
+//			fmt.Printf("下班时间：%s (严重迟到)\n", offDuty.UserCheckTime)
+//		case "Absenteeism":
+//			fmt.Printf("下班时间：%s (旷工迟到)\n", offDuty.UserCheckTime)
+//		case "Early":
+//			fmt.Printf("下班时间：%s (早退)\n", offDuty.UserCheckTime)
+//		default:
+//			fmt.Printf("下班时间：%s\n", offDuty.UserCheckTime)
+//		}
+//	}
+//
+//	return nil
+//}
 
 type AttendanceRecord struct {
 	UserID        string
@@ -99,6 +100,7 @@ type AttendanceRecord struct {
 	OffDutyStatus string
 }
 
+// 考勤状态判断英转中
 func getStatusText(status string) string {
 	switch status {
 	case "Normal":
@@ -118,6 +120,7 @@ func getStatusText(status string) string {
 	}
 }
 
+// 打印考勤报表到Excel文件
 func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate string, filename string) error {
 	userInfos, err := members.GetUserRosterInfo(accessToken, userIdList)
 	if err != nil {

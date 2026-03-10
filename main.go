@@ -14,6 +14,7 @@ import (
 	"github.com/sansanbaby/dayreport/printattendance"
 )
 
+// 获取输出目录
 func getReportDir() string {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -27,6 +28,7 @@ func getReportDir() string {
 	return reportDir
 }
 
+// 生成日报, 并生成 Excel 文件, 并发送邮件
 func generateDailyReport() {
 	fmt.Println("开始生成考勤报表...")
 
@@ -104,6 +106,7 @@ func generateDailyReport() {
 	fmt.Println("邮件发送成功！")
 }
 
+// 主函数, 程序入口, 设置定时任务每天 8 点 00 分执行 generateDailyReport 函数
 func main() {
 	fmt.Println("===========================================")
 	fmt.Println("考勤报表自动生成服务已启动...")

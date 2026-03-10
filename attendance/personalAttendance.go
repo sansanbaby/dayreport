@@ -71,6 +71,7 @@ type AttendanceDetail struct {
 	//UserAddress    string
 }
 
+// 获取个人考勤数据
 func GetPersonalAttendance(accessToken, userID, workDate string) ([]AttendanceResult, error) {
 	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/getupdatedata?access_token=%s", accessToken)
 
@@ -109,6 +110,7 @@ func GetPersonalAttendance(accessToken, userID, workDate string) ([]AttendanceRe
 	return data.Result.AttendanceResultList, nil
 }
 
+// 批量获取个人考勤数据
 func BatchGetPersonalAttendance(accessToken string, userIdList []string, workDate string) ([]AttendanceDetail, error) {
 	var allDetails []AttendanceDetail
 
