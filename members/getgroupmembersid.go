@@ -118,6 +118,43 @@ func GetAttendanceGroupMembersId(accessToken, opUserId string, groupId int) ([]s
 	return allMembers, nil
 }
 
+// GetUserIDByName 根据人员名字获取对应的用户 ID
+func GetUserIDByName(accessToken, name string) (string, error) {
+	// 首先获取考勤组所有成员的 ID
+	memberIDs, err := GetAttendanceGroupMembersId(accessToken, config.Config.OpUserID, config.Config.GroupID)
+	if err != nil {
+		return "", fmt.Errorf("获取考勤组成员失败：%w", err)
+	}
+
+	// 批量获取用户信息（每次最多 100 个）
+	var allUserInfos []UserInfo
+	batchSize := 100
+
+	for i := 0; i < len(memberIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(memberIDs) {
+			end = len(memberIDs)
+		}
+
+		batchIDs := memberIDs[i:end]
+		userInfos, err := GetUserRosterInfo(accessToken, batchIDs)
+		if err != nil {
+			return "", fmt.Errorf("获取用户信息失败：%w", err)
+		}
+
+		allUserInfos = append(allUserInfos, userInfos...)
+	}
+
+	// 查找匹配名字的用户 ID
+	for _, userInfo := range allUserInfos {
+		if userInfo.Name == name {
+			return userInfo.UserID, nil
+		}
+	}
+
+	return "", fmt.Errorf("未找到姓名为 %s 的用户", name)
+}
+
 // GetUserRosterInfo 获取用户信息姓名和部门
 func GetUserRosterInfo(accessToken string, userIdList []string) ([]UserInfo, error) {
 	url := "https://api.dingtalk.com/v1.0/hrm/rosters/lists/query"

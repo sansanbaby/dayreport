@@ -106,12 +106,12 @@ func generateDailyReport() {
 	fmt.Println("邮件发送成功！")
 }
 
-// 主函数, 程序入口, 设置定时任务每天 8 点 00 分执行 generateDailyReport 函数
+// 主函数, 程序入口, 设置定时任务每天 8 点 30 分执行 generateDailyReport 函数
 func main() {
 	fmt.Println("===========================================")
 	fmt.Println("考勤报表自动生成服务已启动...")
 	fmt.Printf("当前操作系统：%s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Println("每天上午 8 点 00 分自动生成前一天的考勤报表")
+	fmt.Println("每天上午 8 点 30 分自动生成前一天的考勤报表")
 
 	reportDir := getReportDir()
 	fmt.Printf("输出目录：%s\n", reportDir)
@@ -120,7 +120,7 @@ func main() {
 
 	c := cron.New(cron.WithLocation(time.Local))
 
-	_, err := c.AddFunc("0 8 * * *", func() {
+	_, err := c.AddFunc("30 8 * * *", func() {
 		generateDailyReport()
 	})
 	if err != nil {
@@ -128,7 +128,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("定时任务已设置：每天 8:00 执行")
+	fmt.Println("定时任务已设置：每天 8:30 执行")
 
 	c.Start()
 

@@ -225,6 +225,10 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#808080"}, Pattern: 1},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 	})
+	nameWarningStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#FF0000"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center"},
+	})
 
 	f.MergeCell(sheetName, "A1", "G1")
 	f.SetCellValue(sheetName, "A1", fmt.Sprintf("考勤报表 - %s", workDate))
@@ -279,6 +283,12 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 	rowNum := 4
 	for _, record := range recordList {
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", rowNum), record.UserID)
+
+		hasAbnormal := record.OnDutyStatus != "Normal" || record.OffDutyStatus != "Normal"
+		if hasAbnormal {
+			f.SetCellStyle(sheetName, fmt.Sprintf("B%d", rowNum), fmt.Sprintf("B%d", rowNum), nameWarningStyle)
+		}
+
 		f.SetCellValue(sheetName, fmt.Sprintf("B%d", rowNum), record.Name)
 		f.SetCellValue(sheetName, fmt.Sprintf("C%d", rowNum), record.Dept)
 		f.SetCellValue(sheetName, fmt.Sprintf("D%d", rowNum), record.OnDutyTime)
