@@ -23,7 +23,7 @@ type Schedule struct {
 	UserID   string `json:"userid"`
 }
 
-type setScheduleResp struct {
+type SetScheduleResp struct {
 	ErrCode   int    `json:"errcode"`
 	Success   bool   `json:"success"`
 	ErrMsg    string `json:"errmsg"`
@@ -31,7 +31,7 @@ type setScheduleResp struct {
 }
 
 // httpPostJSON 发送 POST JSON 请求
-func httpPostJSON(url string, body interface{}) (*setScheduleResp, error) {
+func httpPostJSON(url string, body interface{}) (*SetScheduleResp, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -50,7 +50,7 @@ func httpPostJSON(url string, body interface{}) (*setScheduleResp, error) {
 	}
 	defer resp.Body.Close()
 
-	var data setScheduleResp
+	var data SetScheduleResp
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
@@ -62,23 +62,26 @@ func httpPostJSON(url string, body interface{}) (*setScheduleResp, error) {
 // 参数:
 //   - accessToken: 访问令牌
 //   - workDate: 工作日期（毫秒时间戳）
-//   - userID: 用户 ID
+//   - userIDs: 用户 ID 切片
 //
 // 返回: 钉钉 API 响应和错误
-func SetRestSchedule(accessToken string, workDate int64, userID string) (*setScheduleResp, error) {
+func SetRestSchedule(accessToken string, workDate int64, userIDs []string) (*SetScheduleResp, error) {
 	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
 
+	schedules := make([]Schedule, 0, len(userIDs))
+	for _, userID := range userIDs {
+		schedules = append(schedules, Schedule{
+			ShiftID:  1,
+			WorkDate: workDate,
+			IsRest:   true,
+			UserID:   userID,
+		})
+	}
+
 	reqBody := &setScheduleReq{
-		OpUserID: config.Config.OpUserID,
-		GroupID:  config.Config.GroupID,
-		Schedules: []Schedule{
-			{
-				ShiftID:  1,
-				WorkDate: workDate,
-				IsRest:   true,
-				UserID:   userID,
-			},
-		},
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
 	}
 
 	return httpPostJSON(url, reqBody)
@@ -88,23 +91,26 @@ func SetRestSchedule(accessToken string, workDate int64, userID string) (*setSch
 // 参数:
 //   - accessToken: 访问令牌
 //   - workDate: 工作日期（毫秒时间戳）
-//   - userID: 用户 ID
+//   - userIDs: 用户 ID 切片
 //
 // 返回: 钉钉 API 响应和错误
-func ClearSchedule(accessToken string, workDate int64, userID string) (*setScheduleResp, error) {
+func ClearSchedule(accessToken string, workDate int64, userIDs []string) (*SetScheduleResp, error) {
 	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
 
+	schedules := make([]Schedule, 0, len(userIDs))
+	for _, userID := range userIDs {
+		schedules = append(schedules, Schedule{
+			ShiftID:  -2,
+			WorkDate: workDate,
+			IsRest:   false,
+			UserID:   userID,
+		})
+	}
+
 	reqBody := &setScheduleReq{
-		OpUserID: config.Config.OpUserID,
-		GroupID:  config.Config.GroupID,
-		Schedules: []Schedule{
-			{
-				ShiftID:  -2,
-				WorkDate: workDate,
-				IsRest:   false,
-				UserID:   userID,
-			},
-		},
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
 	}
 
 	return httpPostJSON(url, reqBody)
@@ -114,11 +120,11 @@ func ClearSchedule(accessToken string, workDate int64, userID string) (*setSched
 // 参数:
 //   - accessToken: 访问令牌
 //   - workDate: 工作日期（毫秒时间戳）
-//   - userID: 用户 ID
+//   - userIDs: 用户 ID 切片
 //   - scheduleType: 排班类型 ("common"=生产日常班次，"special"=生产特殊班次 1)
 //
 // 返回: 钉钉 API 响应和错误
-func UpdateSchedule(accessToken string, workDate int64, userID string, scheduleType string) (*setScheduleResp, error) {
+func UpdateSchedule(accessToken string, workDate int64, userIDs []string, scheduleType string) (*SetScheduleResp, error) {
 	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
 
 	var shiftID int
@@ -131,17 +137,118 @@ func UpdateSchedule(accessToken string, workDate int64, userID string, scheduleT
 		return nil, fmt.Errorf("未知的排班类型：%s，请使用 'common' 或 'special'", scheduleType)
 	}
 
+	schedules := make([]Schedule, 0, len(userIDs))
+	for _, userID := range userIDs {
+		schedules = append(schedules, Schedule{
+			ShiftID:  int64(shiftID),
+			WorkDate: workDate,
+			IsRest:   false,
+			UserID:   userID,
+		})
+	}
+
 	reqBody := &setScheduleReq{
-		OpUserID: config.Config.OpUserID,
-		GroupID:  config.Config.GroupID,
-		Schedules: []Schedule{
-			{
-				ShiftID:  int64(shiftID),
-				WorkDate: workDate,
-				IsRest:   false,
-				UserID:   userID,
-			},
-		},
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
+	}
+
+	return httpPostJSON(url, reqBody)
+}
+
+// SetRestScheduleByDates 为单个用户设置多个日期的休息排班
+// 参数:
+//   - accessToken: 访问令牌
+//   - workDates: 工作日期切片（毫秒时间戳）
+//   - userID: 用户 ID
+//
+// 返回: 钉钉 API 响应和错误
+func SetRestScheduleByDates(accessToken string, workDates []int64, userID string) (*SetScheduleResp, error) {
+	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
+
+	schedules := make([]Schedule, 0, len(workDates))
+	for _, workDate := range workDates {
+		schedules = append(schedules, Schedule{
+			ShiftID:  1,
+			WorkDate: workDate,
+			IsRest:   true,
+			UserID:   userID,
+		})
+	}
+
+	reqBody := &setScheduleReq{
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
+	}
+
+	return httpPostJSON(url, reqBody)
+}
+
+// ClearScheduleByDates 清空单个用户的多个日期排班
+// 参数:
+//   - accessToken: 访问令牌
+//   - workDates: 工作日期切片（毫秒时间戳）
+//   - userID: 用户 ID
+//
+// 返回: 钉钉 API 响应和错误
+func ClearScheduleByDates(accessToken string, workDates []int64, userID string) (*SetScheduleResp, error) {
+	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
+
+	schedules := make([]Schedule, 0, len(workDates))
+	for _, workDate := range workDates {
+		schedules = append(schedules, Schedule{
+			ShiftID:  -2,
+			WorkDate: workDate,
+			IsRest:   false,
+			UserID:   userID,
+		})
+	}
+
+	reqBody := &setScheduleReq{
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
+	}
+
+	return httpPostJSON(url, reqBody)
+}
+
+// UpdateScheduleByDates 为单个用户调整多个日期的排班
+// 参数:
+//   - accessToken: 访问令牌
+//   - workDates: 工作日期切片（毫秒时间戳）
+//   - userID: 用户 ID
+//   - scheduleType: 排班类型 ("common"=生产日常班次，"special"=生产特殊班次 1)
+//
+// 返回: 钉钉 API 响应和错误
+func UpdateScheduleByDates(accessToken string, workDates []int64, userID string, scheduleType string) (*SetScheduleResp, error) {
+	url := fmt.Sprintf("https://oapi.dingtalk.com/topapi/attendance/group/schedule/async?access_token=%s", accessToken)
+
+	var shiftID int
+	switch scheduleType {
+	case "common":
+		shiftID = config.Config.CommonScheduleID1
+	case "special":
+		shiftID = config.Config.SpecialScheduleID2
+	default:
+		return nil, fmt.Errorf("未知的排班类型：%s，请使用 'common' 或 'special'", scheduleType)
+	}
+
+	schedules := make([]Schedule, 0, len(workDates))
+	for _, workDate := range workDates {
+		schedules = append(schedules, Schedule{
+			ShiftID:  int64(shiftID),
+			WorkDate: workDate,
+			IsRest:   false,
+			UserID:   userID,
+		})
+	}
+
+	reqBody := &setScheduleReq{
+		OpUserID:  config.Config.OpUserID,
+		GroupID:   config.Config.GroupID,
+		Schedules: schedules,
 	}
 
 	return httpPostJSON(url, reqBody)

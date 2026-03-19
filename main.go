@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/sansanbaby/dayreport/config"
 	"github.com/sansanbaby/dayreport/emailsend"
+	"github.com/sansanbaby/dayreport/handler"
 	"github.com/sansanbaby/dayreport/members"
 	"github.com/sansanbaby/dayreport/printattendance"
 )
@@ -106,7 +108,7 @@ func generateDailyReport() {
 	fmt.Println("邮件发送成功！")
 }
 
-// 主函数, 程序入口, 设置定时任务每天 8 点 30 分执行 generateDailyReport 函数
+// 主函数，程序入口，设置定时任务每天 8 点 30 分执行 generateDailyReport 函数
 func main() {
 	fmt.Println("===========================================")
 	fmt.Println("考勤报表自动生成服务已启动...")
@@ -115,8 +117,22 @@ func main() {
 
 	reportDir := getReportDir()
 	fmt.Printf("输出目录：%s\n", reportDir)
-	fmt.Println("按 Ctrl+C 退出程序")
-	fmt.Println("===========================================")
+
+	// 启动 HTTP 服务器
+	go func() {
+		http.HandleFunc("/api/schedule", handler.HandleSchedule)
+
+		port := "192.168.0.246:8080"
+		//port := ":8080"
+		fmt.Printf("HTTP API 服务器已启动在 http://%s\n", port)
+		fmt.Println("API 端点：POST /api/schedule")
+		fmt.Println("===========================================")
+
+		if err := http.ListenAndServe(port, nil); err != nil {
+			fmt.Printf("HTTP 服务启动失败：%v\n", err)
+			os.Exit(1)
+		}
+	}()
 
 	c := cron.New(cron.WithLocation(time.Local))
 
