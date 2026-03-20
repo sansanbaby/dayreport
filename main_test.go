@@ -2,14 +2,25 @@ package main
 
 import (
 	"testing"
+
+	"github.com/sansanbaby/dayreport/service"
 )
 
 func Test_Main(t *testing.T) {
-	//token, err := config.GetAccessToken()
-	//if err != nil {
-	//	fmt.Printf("获取 token 失败：%v\n", err)
-	//	return
-	//}
-	//fmt.Println(token)
-	generateDailyReport()
+	reportDir := getReportDir()
+	tokenService := service.NewDefaultTokenService()
+	memberRepo := service.NewDefaultMemberRepository()
+	reportGen := service.NewDefaultReportGenerator()
+	emailSender := service.NewDefaultEmailSender()
+
+	// 创建报表服务
+	reportService := service.NewReportService(
+		tokenService,
+		memberRepo,
+		reportGen,
+		emailSender,
+		reportDir,
+	)
+
+	generateDailyReport(reportService)
 }

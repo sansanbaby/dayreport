@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sansanbaby/dayreport/config"
+	"github.com/sansanbaby/dayreport/tools"
 )
 
 type getGroupMembersResp struct {
@@ -69,11 +70,11 @@ func httpPostJSON(url string, body interface{}) (*http.Response, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	b, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
 	return client.Do(req)
@@ -95,16 +96,16 @@ func GetAttendanceGroupMembersId(accessToken, opUserId string, groupId int) ([]s
 		reqBody["cursor"] = cursor
 		resp, err := httpPostJSON(url, reqBody)
 		if err != nil {
-			return nil, err
+			return nil, tools.LogError(err)
 		}
 		defer resp.Body.Close()
 
 		var data getGroupMembersResp
 		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-			return nil, err
+			return nil, tools.LogError(err)
 		}
 		if data.ErrCode != 0 {
-			return nil, fmt.Errorf("getgroupmembers error: %d %s", data.ErrCode, data.ErrMsg)
+			return nil, tools.LogErrorf("getgroupmembers error: %d %s", data.ErrCode, data.ErrMsg)
 		}
 
 		allMembers = append(allMembers, data.Result.Result...)
@@ -123,7 +124,7 @@ func GetUserIDByName(accessToken, name string) (string, error) {
 	// 首先获取考勤组所有成员的 ID
 	memberIDs, err := GetAttendanceGroupMembersId(accessToken, config.Config.OpUserID, config.Config.GroupID)
 	if err != nil {
-		return "", fmt.Errorf("获取考勤组成员失败：%w", err)
+		return "", tools.LogErrorf("获取考勤组成员失败：%w", err)
 	}
 
 	// 批量获取用户信息（每次最多 100 个）
@@ -139,7 +140,7 @@ func GetUserIDByName(accessToken, name string) (string, error) {
 		batchIDs := memberIDs[i:end]
 		userInfos, err := GetUserRosterInfo(accessToken, batchIDs)
 		if err != nil {
-			return "", fmt.Errorf("获取用户信息失败：%w", err)
+			return "", tools.LogErrorf("获取用户信息失败：%w", err)
 		}
 
 		allUserInfos = append(allUserInfos, userInfos...)
@@ -152,11 +153,34 @@ func GetUserIDByName(accessToken, name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("未找到姓名为 %s 的用户", name)
+	return "", tools.LogErrorf("未找到姓名为 %s 的用户", name)
 }
 
 // GetUserRosterInfo 获取用户信息姓名和部门
 func GetUserRosterInfo(accessToken string, userIdList []string) ([]UserInfo, error) {
+	var allUserInfos []UserInfo
+	batchSize := 100
+
+	for i := 0; i < len(userIdList); i += batchSize {
+		end := i + batchSize
+		if end > len(userIdList) {
+			end = len(userIdList)
+		}
+
+		batchIDs := userIdList[i:end]
+		infos, err := getUserRosterInfoBatch(accessToken, batchIDs)
+		if err != nil {
+			return nil, tools.LogError(err)
+		}
+
+		allUserInfos = append(allUserInfos, infos...)
+	}
+
+	return allUserInfos, nil
+}
+
+// getUserRosterInfoBatch 批量获取用户信息（单次请求，最多 100 个用户）
+func getUserRosterInfoBatch(accessToken string, userIdList []string) ([]UserInfo, error) {
 	url := "https://api.dingtalk.com/v1.0/hrm/rosters/lists/query"
 
 	reqBody := getUserRosterReq{
@@ -169,31 +193,31 @@ func GetUserRosterInfo(accessToken string, userIdList []string) ([]UserInfo, err
 	client := &http.Client{Timeout: 30 * time.Second}
 	b, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
 	req.Header.Set("x-acs-dingtalk-access-token", accessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp getUserRosterErrorResp
 		json.NewDecoder(resp.Body).Decode(&errResp)
-		return nil, fmt.Errorf("request failed: status=%d, message=%s", resp.StatusCode, errResp.Message)
+		return nil, tools.LogErrorf("request failed: status=%d, message=%s", resp.StatusCode, errResp.Message)
 	}
 
 	var data getUserRosterResp
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 
 	fmt.Printf("获取到 %d 条用户信息\n", len(data.Result))

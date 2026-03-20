@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/sansanbaby/dayreport/tools"
 )
 
 type getUpdateDataReq struct {
@@ -83,28 +85,28 @@ func GetPersonalAttendance(accessToken, userID, workDate string) ([]AttendanceRe
 	client := &http.Client{Timeout: 30 * time.Second}
 	b, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 	defer resp.Body.Close()
 
 	var data getUpdateDataResp
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+		return nil, tools.LogError(err)
 	}
 
 	if data.ErrCode != 0 {
-		return nil, fmt.Errorf("getupdatedata error: %d %s", data.ErrCode, data.ErrMsg)
+		return nil, tools.LogErrorf("getupdatedata error: %d %s", data.ErrCode, data.ErrMsg)
 	}
 
 	return data.Result.AttendanceResultList, nil
@@ -117,7 +119,7 @@ func BatchGetPersonalAttendance(accessToken string, userIdList []string, workDat
 	for _, userID := range userIdList {
 		results, err := GetPersonalAttendance(accessToken, userID, workDate)
 		if err != nil {
-			fmt.Printf("获取用户 %s 的考勤数据失败：%v\n", userID, err)
+			tools.LogErrorf("获取用户 %s 的考勤数据失败：%v", userID, err)
 			continue
 		}
 

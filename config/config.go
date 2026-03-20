@@ -36,5 +36,5 @@ var Email = EmailConfig{
 	Username:   "lisuo@cxic.com",
 	Password:   "RY5hpYMghyD$Newp",
 	From:       "lisuo@cxic.com",
-	To:         []string{"fuwei@cxic.com", "heyifei@cxic.com", "gongxianzhong@cxic.com", "qiyuansheng@cxic.com", "xym@cxic.com", "yujue@cxic.com", "qianjun@cxic.com", "lisuo@cxic.com"},
+	To:         []string{"fuwei@cxic.com", "heyifei@cxic.com", "gongxianzhong@cxic.com", "qiyuansheng@cxic.com", "xym@cxic.com", "yujue@cxic.com", "qianjun@cxic.com", "xym@cxic.com", "yujue@cxic.com", "qianjun@cxic.com", "lisuo@cxic.com"},
 }

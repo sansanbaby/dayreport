@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sansanbaby/dayreport/config"
-	"github.com/sansanbaby/dayreport/members"
-	"github.com/sansanbaby/dayreport/schedule"
-	"github.com/sansanbaby/dayreport/tools"
+	"github.com/sansanbaby/dayreport/service"
 )
 
 // ScheduleRequest 排班请求结构
@@ -24,6 +21,15 @@ type ScheduleResponse struct {
 	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
 	ErrCode   int    `json:"errcode,omitempty"`
+}
+
+var scheduleService *service.ScheduleService
+
+func init() {
+	// 初始化排班服务
+	tokenService := service.NewDefaultTokenService()
+	memberRepo := service.NewDefaultMemberRepository()
+	scheduleService = service.NewScheduleService(tokenService, memberRepo)
 }
 
 // HandleSchedule 处理排班请求的 HTTP handler
@@ -92,92 +98,26 @@ func HandleSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取 access token
-	token, err := config.GetAccessToken()
+	// 调用服务层执行排班操作
+	result, err := scheduleService.SetSchedules(
+		r.Context(),
+		req.UserNames,
+		req.Dates,
+		req.ScheduleType,
+	)
 	if err != nil {
 		sendResponse(w, &ScheduleResponse{
 			Success: false,
-			Message: "获取访问令牌失败：" + err.Error(),
+			Message: err.Error(),
 			ErrCode: 500,
 		})
 		return
 	}
 
-	// 根据用户名获取用户 ID
-	userIDs := make([]string, 0, len(req.UserNames))
-	for _, userName := range req.UserNames {
-		userID, err := members.GetUserIDByName(token, userName)
-		if err != nil {
-			sendResponse(w, &ScheduleResponse{
-				Success: false,
-				Message: fmt.Sprintf("获取用户 %s 的 ID 失败：%v", userName, err),
-				ErrCode: 404,
-			})
-			return
-		}
-		userIDs = append(userIDs, userID)
-	}
-
-	// 批量执行排班操作（支持多个日期）
-	totalSuccessCount := 0
-	for _, dateStr := range req.Dates {
-		// 将日期转换为毫秒时间戳
-		timestamp, err := tools.DateToMillisecondTimestamp(dateStr)
-		if err != nil {
-			sendResponse(w, &ScheduleResponse{
-				Success: false,
-				Message: fmt.Sprintf("日期 %s 转换失败：%v", dateStr, err),
-				ErrCode: 400,
-			})
-			return
-		}
-
-		// 执行排班操作（批量设置同一日期的多个用户）
-		var resp *schedule.SetScheduleResp
-		switch scheduleTypeEn {
-		case "rest":
-			resp, err = schedule.SetRestSchedule(token, timestamp, userIDs)
-		case "clear":
-			resp, err = schedule.ClearSchedule(token, timestamp, userIDs)
-		case "common":
-			resp, err = schedule.UpdateSchedule(token, timestamp, userIDs, "common")
-		case "special":
-			resp, err = schedule.UpdateSchedule(token, timestamp, userIDs, "special")
-		default:
-			sendResponse(w, &ScheduleResponse{
-				Success: false,
-				Message: "未知的排班类型：" + scheduleTypeEn,
-				ErrCode: 400,
-			})
-			return
-		}
-
-		if err != nil {
-			sendResponse(w, &ScheduleResponse{
-				Success: false,
-				Message: fmt.Sprintf("日期 %s 排班操作失败：%v", dateStr, err),
-				ErrCode: 500,
-			})
-			return
-		}
-
-		if !resp.Success {
-			sendResponse(w, &ScheduleResponse{
-				Success:   false,
-				Message:   fmt.Sprintf("日期 %s 排班失败：%s", dateStr, resp.ErrMsg),
-				ErrCode:   resp.ErrCode,
-				RequestID: resp.RequestID,
-			})
-			return
-		}
-
-		totalSuccessCount += len(userIDs)
-	}
-
 	sendResponse(w, &ScheduleResponse{
 		Success:   true,
-		Message:   fmt.Sprintf("成功为 %d 个用户在 %d 个日期设置 %s 排班", len(userIDs), len(req.Dates), req.ScheduleType),
-		RequestID: fmt.Sprintf("%d", totalSuccessCount),
+		Message:   fmt.Sprintf("成功为 %d 个用户在 %d 个日期设置 %s 排班", len(req.UserNames), len(req.Dates), req.ScheduleType),
+		RequestID: result.RequestID,
 	})
 }
 

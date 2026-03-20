@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sansanbaby/dayreport/config"
+	"github.com/sansanbaby/dayreport/tools"
 )
 
 type EmailSender struct {
@@ -97,7 +98,7 @@ func NewEmailSender() *EmailSender {
 func (e *EmailSender) SendWithAttachment(subject, body, attachmentPath string) error {
 	fileData, err := os.ReadFile(attachmentPath)
 	if err != nil {
-		return fmt.Errorf("读取附件失败：%v", err)
+		return tools.LogErrorf("读取附件失败：%v", err)
 	}
 
 	encodedFile := base64.StdEncoding.EncodeToString(fileData)
@@ -146,43 +147,43 @@ func (e *EmailSender) SendWithAttachment(subject, body, attachmentPath string) e
 
 	conn, err := tls.Dial("tcp", addr, tlsConfig)
 	if err != nil {
-		return fmt.Errorf("连接 SMTP 服务器失败：%v", err)
+		return tools.LogErrorf("连接 SMTP 服务器失败：%v", err)
 	}
 	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, e.config.SMTPServer)
 	if err != nil {
-		return fmt.Errorf("创建 SMTP 客户端失败：%v", err)
+		return tools.LogErrorf("创建 SMTP 客户端失败：%v", err)
 	}
 	defer client.Close()
 
 	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP 认证失败：%v", err)
+		return tools.LogErrorf("SMTP 认证失败：%v", err)
 	}
 
 	if err = client.Mail(e.config.From); err != nil {
-		return fmt.Errorf("设置发件人失败：%v", err)
+		return tools.LogErrorf("设置发件人失败：%v", err)
 	}
 
 	for _, to := range e.config.To {
 		if err = client.Rcpt(to); err != nil {
-			return fmt.Errorf("设置收件人失败：%v", err)
+			return tools.LogErrorf("设置收件人失败：%v", err)
 		}
 	}
 
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("获取数据写入器失败：%v", err)
+		return tools.LogErrorf("获取数据写入器失败：%v", err)
 	}
 
 	_, err = w.Write([]byte(finalMessage))
 	if err != nil {
-		return fmt.Errorf("写入邮件内容失败：%v", err)
+		return tools.LogErrorf("写入邮件内容失败：%v", err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		return fmt.Errorf("关闭数据写入器失败：%v", err)
+		return tools.LogErrorf("关闭数据写入器失败：%v", err)
 	}
 
 	return client.Quit()

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sansanbaby/dayreport/attendance"
 	"github.com/sansanbaby/dayreport/members"
+	"github.com/sansanbaby/dayreport/tools"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -124,7 +125,7 @@ func getStatusText(status string) string {
 func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate string, filename string) error {
 	userInfos, err := members.GetUserRosterInfo(accessToken, userIdList)
 	if err != nil {
-		return fmt.Errorf("获取员工信息失败：%v", err)
+		return tools.LogErrorf("获取员工信息失败：%v", err)
 	}
 
 	userInfoMap := make(map[string]members.UserInfo)
@@ -134,54 +135,47 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 
 	details, err := attendance.BatchGetPersonalAttendance(accessToken, userIdList, workDate)
 	if err != nil {
-		return fmt.Errorf("获取考勤数据失败：%v", err)
+		return tools.LogErrorf("获取考勤数据失败：%v", err)
 	}
 
-	records := make(map[string]*AttendanceRecord)
-	for i := 0; i < len(details); i += 2 {
-		if i+1 >= len(details) {
-			break
-		}
+	userRecords := make(map[string][]attendance.AttendanceDetail)
+	for _, detail := range details {
+		userRecords[detail.UserID] = append(userRecords[detail.UserID], detail)
+	}
 
-		record1 := details[i]
-		record2 := details[i+1]
-
-		var onDuty, offDuty attendance.AttendanceDetail
-
-		if record1.CheckType == "OnDuty" {
-			onDuty = record1
-			offDuty = record2
-		} else {
-			onDuty = record2
-			offDuty = record1
-		}
-
-		userInfo := userInfoMap[onDuty.UserID]
+	var recordList []*AttendanceRecord
+	for userID, userDetailList := range userRecords {
+		userInfo := userInfoMap[userID]
 
 		record := &AttendanceRecord{
-			UserID:        onDuty.UserID,
-			Name:          userInfo.Name,
-			Dept:          userInfo.Dept,
-			OnDutyTime:    onDuty.UserCheckTime,
-			OnDutyStatus:  onDuty.TimeResult,
-			OffDutyTime:   offDuty.UserCheckTime,
-			OffDutyStatus: offDuty.TimeResult,
+			UserID: userID,
+			Name:   userInfo.Name,
+			Dept:   userInfo.Dept,
 		}
 
-		if onDuty.TimeResult == "NotSigned" {
-			record.OnDutyTime = "未打卡"
-		}
-		if offDuty.TimeResult == "NotSigned" {
-			record.OffDutyTime = "未打卡"
+		for _, detail := range userDetailList {
+			if detail.CheckType == "OnDuty" {
+				record.OnDutyTime = detail.UserCheckTime
+				record.OnDutyStatus = detail.TimeResult
+				if detail.TimeResult == "NotSigned" {
+					record.OnDutyTime = "未打卡"
+				}
+			} else if detail.CheckType == "OffDuty" {
+				record.OffDutyTime = detail.UserCheckTime
+				record.OffDutyStatus = detail.TimeResult
+				if detail.TimeResult == "NotSigned" {
+					record.OffDutyTime = "未打卡"
+				}
+			}
 		}
 
-		records[onDuty.UserID] = record
+		recordList = append(recordList, record)
 	}
 
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
-			fmt.Println(err)
+			tools.LogError(err)
 		}
 	}()
 
@@ -199,10 +193,6 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 	headerStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true},
 		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#CCCCCC"}, Pattern: 1},
-		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
-	})
-	normalStyle, _ := f.NewStyle(&excelize.Style{
-		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#FFFFFF"}, Pattern: 1},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 	})
 	lateStyle, _ := f.NewStyle(&excelize.Style{
@@ -230,6 +220,25 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center"},
 	})
 
+	getStyle := func(status string) int {
+		switch status {
+		case "Normal":
+			return 0
+		case "Late":
+			return lateStyle
+		case "SeriousLate":
+			return seriousLateStyle
+		case "Absenteeism":
+			return absenteeismStyle
+		case "Early":
+			return earlyStyle
+		case "NotSigned":
+			return notSignedStyle
+		default:
+			return 0
+		}
+	}
+
 	f.MergeCell(sheetName, "A1", "G1")
 	f.SetCellValue(sheetName, "A1", fmt.Sprintf("考勤报表 - %s", workDate))
 	f.SetCellStyle(sheetName, "A1", "A1", titleStyle)
@@ -249,36 +258,12 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 		f.SetCellStyle(sheetName, cell, cell, headerStyle)
 	}
 
-	recordList := make([]*AttendanceRecord, 0, len(records))
-	for _, record := range records {
-		recordList = append(recordList, record)
-	}
-
 	sort.Slice(recordList, func(i, j int) bool {
 		if recordList[i].Dept != recordList[j].Dept {
 			return recordList[i].Dept < recordList[j].Dept
 		}
 		return recordList[i].Name < recordList[j].Name
 	})
-
-	getStyle := func(status string) int {
-		switch status {
-		case "Normal":
-			return normalStyle
-		case "Late":
-			return lateStyle
-		case "SeriousLate":
-			return seriousLateStyle
-		case "Absenteeism":
-			return absenteeismStyle
-		case "Early":
-			return earlyStyle
-		case "NotSigned":
-			return notSignedStyle
-		default:
-			return normalStyle
-		}
-	}
 
 	rowNum := 4
 	for _, record := range recordList {
@@ -321,11 +306,11 @@ func ExportAttendanceToExcel(accessToken string, userIdList []string, workDate s
 		filename = fmt.Sprintf("考勤报表_%s.xlsx", workDate)
 	}
 	if err := f.SaveAs(filename); err != nil {
-		return fmt.Errorf("保存 Excel 文件失败：%v", err)
+		return tools.LogErrorf("保存 Excel 文件失败：%v", err)
 	}
 
 	fmt.Printf("考勤报表已导出到：%s\n", filename)
-	fmt.Printf("共导出 %d 条记录\n", len(records))
+	fmt.Printf("共导出 %d 条记录\n", len(recordList))
 
 	return nil
 }

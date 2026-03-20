@@ -14,6 +14,7 @@ func TestGetAttendanceGroupMembersId(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("members:", members)
 	//for _, member := range members {
 	//	println(member)
 	//}

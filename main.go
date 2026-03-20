@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,11 +10,9 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/sansanbaby/dayreport/config"
-	"github.com/sansanbaby/dayreport/emailsend"
 	"github.com/sansanbaby/dayreport/handler"
-	"github.com/sansanbaby/dayreport/members"
-	"github.com/sansanbaby/dayreport/printattendance"
+	"github.com/sansanbaby/dayreport/service"
+	"github.com/sansanbaby/dayreport/tools"
 )
 
 // 获取输出目录
@@ -30,81 +29,19 @@ func getReportDir() string {
 	return reportDir
 }
 
-// 生成日报, 并生成 Excel 文件, 并发送邮件
-func generateDailyReport() {
+// 生成日报，并生成 Excel 文件，并发送邮件
+func generateDailyReport(reportService *service.ReportService) {
 	fmt.Println("开始生成考勤报表...")
 
-	token, err := config.GetAccessToken()
+	result, err := reportService.GenerateDailyReport(context.Background())
 	if err != nil {
-		fmt.Printf("获取 token 失败：%v\n", err)
+		tools.LogErrorf("生成报表失败：%v", err)
 		return
 	}
 
-	userIds, err := members.GetAttendanceGroupMembersId(token, config.Config.OpUserID, config.Config.GroupID)
-	if err != nil {
-		fmt.Printf("获取成员列表失败：%v\n", err)
-		return
-	}
-
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-
-	reportDir := getReportDir()
-	if _, err := os.Stat(reportDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(reportDir, 0755); err != nil {
-			fmt.Printf("创建目录失败：%v\n", err)
-			return
-		}
-	}
-
-	filename := filepath.Join(reportDir, fmt.Sprintf("考勤报表_%s.xlsx", yesterday))
-
-	err = printattendance.ExportAttendanceToExcel(token, userIds, yesterday, filename)
-	if err != nil {
-		fmt.Printf("生成报表失败：%v\n", err)
-		return
-	}
-
-	fmt.Printf("考勤报表生成成功：%s\n", filename)
-
-	time.Sleep(2 * time.Second)
-
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		fmt.Printf("错误：文件不存在：%s\n", filename)
-		return
-	}
-
-	fileInfo, err := os.Stat(filename)
-	if err != nil {
-		fmt.Printf("错误：无法获取文件信息：%v\n", err)
-		return
-	}
-	fmt.Printf("文件大小：%d 字节\n", fileInfo.Size())
-
-	if fileInfo.Size() == 0 {
-		fmt.Println("错误：生成的 Excel 文件为空")
-		return
-	}
-
-	subject := fmt.Sprintf("考勤日报 - %s", yesterday)
-	body := fmt.Sprintf(`
-	<html>
-	<body>
-		<h2>尊敬的领导：</h2>
-		<p>您好！</p>
-		<p>附件为 <strong>%s</strong> 的考勤日报，请查收。</p>
-		<p>此邮件由系统自动发送</p>
-		<br/>
-	</body>
-	</html>
-	`, yesterday)
-
-	sender := emailsend.NewEmailSender()
-	err = sender.SendWithAttachment(subject, body, filename)
-	if err != nil {
-		fmt.Printf("发送邮件失败：%v\n", err)
-		return
-	}
-
+	fmt.Printf("考勤报表生成成功：%s\n", result.Filename)
+	fmt.Printf("文件大小：%d 字节\n", result.FileSize)
+	fmt.Printf("共导出 %d 条记录\n", result.Count)
 	fmt.Println("邮件发送成功！")
 }
 
@@ -118,6 +55,21 @@ func main() {
 	reportDir := getReportDir()
 	fmt.Printf("输出目录：%s\n", reportDir)
 
+	// 初始化服务层
+	tokenService := service.NewDefaultTokenService()
+	memberRepo := service.NewDefaultMemberRepository()
+	reportGen := service.NewDefaultReportGenerator()
+	emailSender := service.NewDefaultEmailSender()
+
+	// 创建报表服务
+	reportService := service.NewReportService(
+		tokenService,
+		memberRepo,
+		reportGen,
+		emailSender,
+		reportDir,
+	)
+
 	// 启动 HTTP 服务器
 	go func() {
 		http.HandleFunc("/api/schedule", handler.HandleSchedule)
@@ -129,18 +81,18 @@ func main() {
 		fmt.Println("===========================================")
 
 		if err := http.ListenAndServe(port, nil); err != nil {
-			fmt.Printf("HTTP 服务启动失败：%v\n", err)
+			tools.LogErrorf("HTTP 服务启动失败：%v", err)
 			os.Exit(1)
 		}
 	}()
 
 	c := cron.New(cron.WithLocation(time.Local))
 
-	_, err := c.AddFunc("30 8 * * *", func() {
-		generateDailyReport()
+	_, err := c.AddFunc("46 8 * * *", func() {
+		generateDailyReport(reportService)
 	})
 	if err != nil {
-		fmt.Printf("创建定时任务失败：%v\n", err)
+		tools.LogErrorf("创建定时任务失败：%v", err)
 		return
 	}
 
