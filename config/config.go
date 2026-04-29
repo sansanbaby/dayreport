@@ -11,13 +11,13 @@ type DingDingConfig struct {
 }
 
 var Config = DingDingConfig{
-	AppKey:             "ding8vdd94lrv6norsyx",
-	AppSecret:          "RjgCO3uTzuq9kdGujy6Esn8rsjW7esOylgrBhH-taIeYBlxo-kvOZf6LdFKH_TTu",
-	OpUserID:           "011041333440857971",
-	GroupID:            1358900177,
-	AppAgentID:         4314663907,
-	CommonScheduleID1:  1508085204,
-	SpecialScheduleID2: 1436380221,
+	AppKey:             "xx",
+	AppSecret:          "xx",
+	OpUserID:           "xx1",
+	GroupID:            11,
+	AppAgentID:         11,
+	CommonScheduleID1:  11,
+	SpecialScheduleID2: 11,
 }
 
 type EmailConfig struct {
@@ -33,8 +33,8 @@ type EmailConfig struct {
 var Email = EmailConfig{
 	SMTPServer: "smtphz.qiye.163.com",
 	SMTPPort:   465,
-	Username:   "lisuo@cxic.com",
-	Password:   "RY5hpYMghyD$Newp",
-	From:       "lisuo@cxic.com",
-	To:         []string{"fuwei@cxic.com", "heyifei@cxic.com", "gongxianzhong@cxic.com", "qiyuansheng@cxic.com", "xym@cxic.com", "yujue@cxic.com", "qianjun@cxic.com", "xym@cxic.com", "yujue@cxic.com", "qianjun@cxic.com", "lisuo@cxic.com"},
+	Username:   "11.com",
+	Password:   "11",
+	From:       "11com",
+	To:         []string{"11"},
 }
